@@ -1,0 +1,26 @@
+{
+  "name": "jzac-lead-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "JZac Lead Generator - mobile-first PWA for field lead discovery",
+  "scripts": {
+    "dev": "vercel dev",
+    "dev:web": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "gen:icons": "node scripts/generate-icons.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
+    "pg": "^8.11.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.3.4"
+  }
+}

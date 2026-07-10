@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#06070b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JZac Quotes">
+<title>JZac Designs — Vinyl Quote Studio</title>
+
+<link rel="manifest" href='data:application/manifest+json,{"name":"JZac Designs Quote Studio","short_name":"JZac Quotes","start_url":".","display":"standalone","background_color":"%2306070b","theme_color":"%2306070b","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 192 192%27%3E%3Crect width=%27192%27 height=%27192%27 rx=%2742%27 fill=%27%2306070b%27/%3E%3Ctext x=%2796%27 y=%27126%27 font-size=%2790%27 font-family=%27Arial,sans-serif%27 font-weight=%27800%27 fill=%27%23dfe6ef%27 text-anchor=%27middle%27%3EJZ%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}'>
+
+<style>
+:root{
+  --bg:#06070b;
+  --bg-2:#0a0c12;
+  --panel:rgba(19,23,31,.72);
+  --panel-solid:#12151d;
+  --panel-2:rgba(28,33,44,.7);
+  --line:rgba(150,168,196,.14);
+  --line-2:rgba(170,190,220,.24);
+  --txt:#e9eef6;
+  --txt-dim:#98a3b6;
+  --txt-faint:#5f6a7e;
+
+  /* chrome ramp */
+  --chrome-hi:#ffffff;
+  --chrome-1:#eef3fa;
+  --chrome-2:#c4cdda;
+  --chrome-3:#8b94a5;
+  --chrome-4:#5a6272;
+  --chrome-shadow:#20242e;
+
+  --ice:#bcd7f0;
+  --steel:#8aa0bd;
+  --glow:rgba(150,196,240,.35);
+
+  --green:#4fe0a6;
+  --green-soft:rgba(79,224,166,.12);
+  --gold:#e9c06a;
+
+  --radius:16px;
+  --mono:'SF Mono',ui-monospace,'Cascadia Code','Consolas',monospace;
+  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--txt);
+  font-family:var(--sans);
+  font-size:15px;line-height:1.45;min-height:100vh;
+  padding-bottom:env(safe-area-inset-bottom);
+  position:relative;overflow-x:hidden;
+}
+/* Ambient moving light field */
+body::before{
+  content:"";position:fixed;inset:-20%;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(600px 400px at 15% 0%, rgba(90,130,180,.18), transparent 60%),
+    radial-gradient(700px 500px at 90% 10%, rgba(120,150,200,.12), transparent 60%),
+    radial-gradient(800px 600px at 70% 100%, rgba(70,90,130,.14), transparent 60%);
+  animation:drift 22s ease-in-out infinite alternate;
+}
+@keyframes drift{0%{transform:translate3d(0,0,0) scale(1)}100%{transform:translate3d(-3%,2%,0) scale(1.08)}}
+/* faint brushed-metal grain */
+body::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(115deg, rgba(255,255,255,.014) 0 1px, transparent 1px 3px);
+}
+
+/* ============ CHROME TEXT + SHIMMER ============ */
+.chrome{
+  background:linear-gradient(100deg,
+    var(--chrome-4) 0%, var(--chrome-2) 18%, var(--chrome-hi) 30%,
+    var(--chrome-2) 42%, var(--chrome-4) 55%, var(--chrome-1) 76%, var(--chrome-3) 100%);
+  background-size:220% auto;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shimmer 7s linear infinite;
+}
+@keyframes shimmer{to{background-position:220% center}}
+
+/* ---------- Header ---------- */
+header{
+  position:sticky;top:0;z-index:50;
+  background:linear-gradient(180deg,rgba(8,10,15,.92),rgba(8,10,15,.62));
+  backdrop-filter:saturate(150%) blur(16px);-webkit-backdrop-filter:saturate(150%) blur(16px);
+  border-bottom:1px solid var(--line);
+  padding:calc(env(safe-area-inset-top) + 13px) 16px 13px;
+}
+header::after{ /* chrome hairline with traveling glow */
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(190,215,240,.7),transparent);
+  background-size:50% 100%;background-repeat:no-repeat;
+  animation:sweep 6s linear infinite;
+}
+@keyframes sweep{0%{background-position:-60% 0}100%{background-position:160% 0}}
+.bar{max-width:1120px;margin:0 auto;display:flex;align-items:center;gap:13px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:13px;margin-right:auto}
+.mark{
+  width:46px;height:46px;border-radius:13px;flex:0 0 auto;position:relative;overflow:hidden;
+  background:
+    linear-gradient(160deg,#eef3fa 0%,#aab4c4 22%,#5c6472 50%,#c8d2e0 74%,#7a8393 100%);
+  display:grid;place-items:center;
+  box-shadow:0 6px 18px rgba(0,0,0,.55), inset 0 1px 1px rgba(255,255,255,.7), inset 0 -2px 3px rgba(0,0,0,.4);
+}
+.mark span{font-weight:800;font-size:19px;letter-spacing:-1px;color:#20242e;text-shadow:0 1px 0 rgba(255,255,255,.5)}
+.mark::before{ /* moving sheen */
+  content:"";position:absolute;top:-60%;left:-30%;width:60%;height:220%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);
+  transform:skewX(-20deg);animation:coin 4.5s ease-in-out infinite;
+}
+@keyframes coin{0%,100%{left:-40%}50%{left:120%}}
+.logo h1{font-size:18px;margin:0;font-weight:800;letter-spacing:.3px}
+.logo .sub{font-size:10.5px;color:var(--steel);letter-spacing:3px;text-transform:uppercase;font-weight:700;margin-top:1px}
+.actions{display:flex;gap:9px;flex-wrap:wrap}
+
+/* ---------- Buttons (glossy chrome) ---------- */
+button,.btn{
+  font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;position:relative;overflow:hidden;
+  border:1px solid var(--line-2);color:var(--txt);
+  background:linear-gradient(180deg,rgba(46,52,64,.9),rgba(20,24,31,.95));
+  padding:10px 16px;border-radius:12px;transition:.18s;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1), 0 3px 10px rgba(0,0,0,.45);
+}
+button::after,.btn::after{ /* hover sheen sweep */
+  content:"";position:absolute;top:0;left:-120%;width:60%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.28),transparent);
+  transform:skewX(-20deg);transition:left .6s ease;
+}
+button:hover::after,.btn:hover::after{left:150%}
+button:hover,.btn:hover{border-color:var(--line-2);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.18), 0 4px 16px rgba(120,160,210,.22)}
+button:active{transform:translateY(1px)}
+.btn svg{width:15px;height:15px;position:relative;z-index:1}
+.btn span,.btn{position:relative}
+.btn-primary{
+  background:linear-gradient(180deg,#f2f6fb 0%,#c6cfdc 45%,#98a2b2 55%,#dbe3ee 100%);
+  color:#161a22;border:1px solid rgba(255,255,255,.5);
+  box-shadow:inset 0 1px 1px rgba(255,255,255,.9), inset 0 -2px 3px rgba(0,0,0,.25), 0 5px 18px rgba(150,180,220,.3);
+  text-shadow:0 1px 0 rgba(255,255,255,.4);
+}
+.btn-primary:hover{color:#0d1017;filter:brightness(1.05)}
+.btn-ghost{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.01))}
+
+/* ---------- Layout ---------- */
+main{max-width:1120px;margin:0 auto;padding:20px 16px 70px}
+.grid{display:grid;grid-template-columns:1fr 372px;gap:20px;align-items:start}
+@media(max-width:880px){.grid{grid-template-columns:1fr}}
+
+.card{
+  position:relative;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);
+  padding:20px;margin-bottom:20px;
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 20px 50px rgba(0,0,0,.4);
+}
+.card::before{ /* top edge chrome highlight */
+  content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:linear-gradient(160deg,rgba(190,215,240,.35),rgba(255,255,255,0) 30%,rgba(255,255,255,0) 70%,rgba(150,170,200,.14));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+}
+.card h2{
+  font-size:11.5px;text-transform:uppercase;letter-spacing:2px;color:var(--steel);
+  margin:0 0 16px;font-weight:800;display:flex;align-items:center;gap:9px;
+}
+.card h2 .dot{width:7px;height:7px;border-radius:50%;
+  background:linear-gradient(160deg,#eef3fa,#8b94a5);box-shadow:0 0 8px var(--glow), inset 0 1px 1px rgba(255,255,255,.8)}
+
+/* ---------- Service tabs ---------- */
+.services{display:flex;gap:9px;flex-wrap:wrap}
+.svc{
+  border:1px solid var(--line);color:var(--txt-dim);
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));
+  padding:11px 15px;border-radius:13px;font-weight:700;font-size:13.5px;cursor:pointer;transition:.18s;
+  display:flex;align-items:center;gap:9px;flex:1 1 auto;justify-content:center;min-width:135px;position:relative;overflow:hidden;
+}
+.svc .ico{font-size:16px;line-height:1;filter:grayscale(.2)}
+.svc:hover{border-color:var(--line-2);color:var(--txt);transform:translateY(-1px)}
+.svc.active{
+  color:#fff;border-color:transparent;
+  background:linear-gradient(180deg,rgba(190,215,240,.22),rgba(120,150,190,.08));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 4px 16px rgba(120,160,210,.2);
+}
+.svc.active::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;
+  background:linear-gradient(90deg,transparent,var(--ice),transparent)}
+.svc.active .ico{filter:none;text-shadow:0 0 10px var(--glow)}
+
+/* ---------- Form ---------- */
+.field{margin-bottom:15px}
+.field label{display:block;font-size:11.5px;color:var(--txt-dim);margin-bottom:7px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+.field .hint{color:var(--txt-faint);font-weight:600;font-size:10.5px;margin-left:5px;text-transform:none;letter-spacing:0}
+input,select,textarea{
+  width:100%;font-family:inherit;font-size:15px;color:var(--txt);
+  background:linear-gradient(180deg,rgba(0,0,0,.4),rgba(20,24,32,.5));
+  border:1px solid var(--line);border-radius:11px;padding:12px 13px;transition:.18s;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.4);
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--steel);box-shadow:inset 0 1px 2px rgba(0,0,0,.4), 0 0 0 3px rgba(138,160,189,.18), 0 0 18px rgba(150,196,240,.12)}
+input::placeholder,textarea::placeholder{color:var(--txt-faint)}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%238aa0bd' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:34px}
+textarea{resize:vertical;min-height:82px;line-height:1.5}
+.row{display:grid;gap:13px}
+.row.c2{grid-template-columns:1fr 1fr}
+.row.c3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:520px){.row.c3{grid-template-columns:1fr 1fr}}
+.inputwrap{position:relative}
+.inputwrap .unit{position:absolute;right:13px;top:50%;transform:translateY(-50%);color:var(--txt-faint);font-size:13px;font-weight:700;pointer-events:none}
+.inputwrap input{padding-right:48px}
+
+.seg{display:flex;background:rgba(0,0,0,.4);border:1px solid var(--line);border-radius:11px;padding:4px;gap:4px;box-shadow:inset 0 1px 3px rgba(0,0,0,.5)}
+.seg button{flex:1;background:transparent;border:none;color:var(--txt-dim);padding:8px;border-radius:8px;font-size:12.5px;box-shadow:none}
+.seg button::after{display:none}
+.seg button.on{
+  background:linear-gradient(180deg,#eef3fa,#aeb8c7);color:#161a22;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8), 0 2px 6px rgba(0,0,0,.4);text-shadow:0 1px 0 rgba(255,255,255,.4)}
+.seg button:hover:not(.on){color:var(--txt)}
+
+/* ---------- Summary ---------- */
+.summary{position:sticky;top:100px}
+.totline{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line)}
+.totline:last-of-type{border-bottom:none}
+.totline .k{color:var(--txt-dim);font-size:13.5px;font-weight:500}
+.totline .v{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:15px;font-weight:600;color:var(--txt)}
+.totline.grand{
+  margin-top:10px;padding:18px;border-radius:14px;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,rgba(190,215,240,.14),rgba(90,120,160,.06));
+  border:1px solid var(--line-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.15), 0 10px 30px rgba(0,0,0,.35);border-bottom:1px solid var(--line-2);
+}
+.totline.grand::before{content:"";position:absolute;top:0;left:-100%;width:50%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);transform:skewX(-20deg);animation:glint 5s ease-in-out infinite}
+@keyframes glint{0%,100%{left:-60%}50%{left:140%}}
+.totline.grand .k{color:#eef3fa;font-size:14px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px}
+.totline.grand .v{font-size:28px;font-weight:800}
+.margin-pill{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:12px 15px;
+  background:var(--green-soft);border:1px solid rgba(79,224,166,.28);border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.margin-pill .k{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.8px}
+.margin-pill .v{font-family:var(--mono);font-weight:800;font-size:19px;color:var(--green)}
+.profit-amt{color:var(--txt-dim);font-size:11.5px;font-weight:600;margin-top:3px;text-align:right}
+
+/* ---------- Saved quotes ---------- */
+.saved-list{display:flex;flex-direction:column;gap:9px;max-height:360px;overflow:auto;margin:-4px -4px 0;padding:4px}
+.qitem{display:flex;align-items:center;gap:11px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));cursor:pointer;transition:.18s}
+.qitem:hover{border-color:var(--line-2);transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.qitem .meta{flex:1;min-width:0}
+.qitem .nm{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qitem .info{font-size:11.5px;color:var(--txt-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.qitem .amt{font-family:var(--mono);font-weight:800;font-size:14px}
+.qitem .del{flex:0 0 auto;width:30px;height:30px;padding:0;justify-content:center;border-radius:9px;background:transparent;border-color:transparent;color:var(--txt-faint);box-shadow:none}
+.qitem .del::after{display:none}
+.qitem .del:hover{color:#ff8f8f;border-color:rgba(255,120,120,.4);background:rgba(255,90,90,.08)}
+.empty{color:var(--txt-faint);text-align:center;padding:26px 12px;font-size:13px;line-height:1.6}
+
+/* ---------- Toast ---------- */
+#toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  background:linear-gradient(180deg,rgba(40,46,58,.96),rgba(18,22,29,.96));border:1px solid var(--line-2);color:#fff;
+  padding:13px 22px;border-radius:13px;font-size:14px;font-weight:700;box-shadow:0 12px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.12);
+  opacity:0;pointer-events:none;transition:.28s;z-index:200;display:flex;align-items:center;gap:9px}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast .chk{color:var(--green)}
+
+.tip{font-size:11.5px;color:var(--txt-faint);margin-top:12px;line-height:1.55}
+
+@media(prefers-reduced-motion:reduce){
+  .chrome,header::after,.mark::before,.totline.grand::before,body::before,button::after,.btn::after{animation:none!important}
+}
+
+/* ====================== PRINT / PDF ====================== */
+#print-area{display:none}
+@media print{
+  @page{size:letter;margin:14mm}
+  body{background:#fff!important;color:#000!important;font-size:12px}
+  body::before,body::after{display:none!important}
+  header,main,#toast{display:none!important}
+  #print-area{display:block!important;color:#000}
+  .pa-head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #12151d;padding-bottom:14px;margin-bottom:18px}
+  .pa-mark{font-size:30px;font-weight:800;letter-spacing:-1px;color:#12151d}
+  .pa-mark .tag{display:block;font-size:10px;letter-spacing:3px;color:#777;font-weight:700;text-transform:uppercase;margin-top:2px}
+  .pa-quote{text-align:right}
+  .pa-quote .t{font-size:22px;font-weight:800;letter-spacing:3px;color:#12151d;text-transform:uppercase}
+  .pa-quote .meta{font-size:11px;color:#444;margin-top:4px}
+  .pa-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 30px;margin-bottom:18px}
+  .pa-grid .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:700}
+  .pa-grid .val{font-size:13px;font-weight:600;color:#111;margin-bottom:6px;border-bottom:1px solid #eee;padding-bottom:5px}
+  table.pa-tbl{width:100%;border-collapse:collapse;margin-bottom:18px}
+  table.pa-tbl th{background:#12151d;color:#fff;text-align:left;padding:9px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px}
+  table.pa-tbl th.r,table.pa-tbl td.r{text-align:right}
+  table.pa-tbl td{padding:9px 12px;border-bottom:1px solid #e5e5e5;font-size:12.5px}
+  table.pa-tbl tr.sub td{font-weight:600}
+  table.pa-tbl tr.total td{background:#f2f4f7;font-weight:800;font-size:15px;border-top:2px solid #12151d;border-bottom:none;color:#12151d}
+  .pa-notes{margin-bottom:20px}
+  .pa-notes .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:700;margin-bottom:5px}
+  .pa-notes .box{border:1px solid #ddd;border-radius:6px;padding:11px;font-size:12px;min-height:48px;white-space:pre-wrap;color:#222}
+  .pa-foot{border-top:1px solid #ddd;padding-top:12px;font-size:10.5px;color:#666;display:flex;justify-content:space-between}
+  .pa-foot .terms{max-width:62%;line-height:1.5}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="logo">
+      <div class="mark"><span>JZ</span></div>
+      <div>
+        <h1 class="chrome">JZac Designs</h1>
+        <div class="sub">Vinyl Quote Studio</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn-ghost" id="btnNew" title="Start a fresh quote">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg><span>New</span>
+      </button>
+      <button id="btnSave" title="Save this quote to this device">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h11l3 3v15H5z" stroke-linejoin="round"/><path d="M8 3v6h8M8 21v-7h8v7" stroke-linejoin="round"/></svg><span>Save</span>
+      </button>
+      <button class="btn-primary" id="btnPdf" title="Export / print to PDF">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4v-7h16v7h-2M8 14h8v7H8z" stroke-linejoin="round"/></svg><span>Export PDF</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+
+    <!-- ============ LEFT: FORM ============ -->
+    <div>
+      <section class="card">
+        <h2><span class="dot"></span>Service Type</h2>
+        <div class="services" id="services"></div>
+      </section>
+
+      <section class="card">
+        <h2><span class="dot"></span>Customer &amp; Job Details</h2>
+        <div class="row c2">
+          <div class="field"><label>Customer Name</label><input id="custName" placeholder="Pacific Auto Body"></div>
+          <div class="field"><label>Job / Project Name</label><input id="jobName" placeholder="Fleet van full wrap"></div>
+        </div>
+        <div class="row c2">
+          <div class="field"><label>Date</label><input id="quoteDate" type="date"></div>
+          <div class="field"><label>Quote #</label><input id="quoteNum" placeholder="JZ-0001"></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2><span class="dot"></span>Materials &amp; Pricing</h2>
+
+        <div class="field">
+          <label>Material Type <span class="hint">3M product</span></label>
+          <select id="material"></select>
+        </div>
+
+        <div class="field">
+          <label>Color / Finish <span class="hint">exact color or 3M code</span></label>
+          <input id="colorFinish" placeholder="e.g. 2080-G12 Gloss Black, Satin Smoke, 3M 230-10 White">
+        </div>
+
+        <div class="field">
+          <label>Area Input Method</label>
+          <div class="seg" id="areaMode">
+            <button data-mode="sqft" class="on">Square Footage</button>
+            <button data-mode="dims">Dimensions (W × H)</button>
+          </div>
+        </div>
+
+        <div id="sqftBlock">
+          <div class="field"><label>Total Area</label>
+            <div class="inputwrap"><input id="sqft" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0"><span class="unit">ft²</span></div>
+          </div>
+        </div>
+
+        <div id="dimsBlock" style="display:none">
+          <div class="row c3">
+            <div class="field"><label>Width</label><div class="inputwrap"><input id="dimW" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0"><span class="unit" id="dimWU">in</span></div></div>
+            <div class="field"><label>Height</label><div class="inputwrap"><input id="dimH" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0"><span class="unit" id="dimHU">in</span></div></div>
+            <div class="field"><label>Quantity</label><input id="dimQty" type="number" min="1" step="1" inputmode="numeric" value="1"></div>
+          </div>
+          <div class="row c2">
+            <div class="field"><label>Units</label>
+              <div class="seg" id="dimUnit"><button data-u="in" class="on">Inches</button><button data-u="ft">Feet</button></div>
+            </div>
+            <div class="field"><label>Computed Area</label><div class="inputwrap"><input id="dimArea" type="text" readonly style="opacity:.8"><span class="unit">ft²</span></div></div>
+          </div>
+        </div>
+
+        <div class="row c2">
+          <div class="field"><label>Material Rate <span class="hint">/ ft²</span></label><div class="inputwrap"><input id="matRate" type="number" min="0" step="0.01" inputmode="decimal"><span class="unit">$</span></div></div>
+          <div class="field"><label>Waste / Overage <span class="hint">%</span></label><div class="inputwrap"><input id="waste" type="number" min="0" step="1" inputmode="decimal" value="10"><span class="unit">%</span></div></div>
+        </div>
+        <div class="row c2">
+          <div class="field"><label>Labor Hours</label><div class="inputwrap"><input id="laborHrs" type="number" min="0" step="0.25" inputmode="decimal" placeholder="0"><span class="unit">hr</span></div></div>
+          <div class="field"><label>Labor Rate <span class="hint">/ hr</span></label><div class="inputwrap"><input id="laborRate" type="number" min="0" step="1" inputmode="decimal"><span class="unit">$</span></div></div>
+        </div>
+        <div class="row c2">
+          <div class="field"><label>Additional / Setup Fees</label><div class="inputwrap"><input id="extra" type="number" min="0" step="1" inputmode="decimal" placeholder="0" value="0"><span class="unit">$</span></div></div>
+          <div class="field"><label>Markup <span class="hint">on cost</span></label><div class="inputwrap"><input id="markup" type="number" min="0" step="1" inputmode="decimal" value="40"><span class="unit">%</span></div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2><span class="dot"></span>Notes &amp; Special Instructions</h2>
+        <div class="field" style="margin:0">
+          <textarea id="notes" placeholder="Install location, surface prep, removal of old graphics, design proof terms, deposit required, turnaround time…"></textarea>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ RIGHT: SUMMARY + SAVED ============ -->
+    <div>
+      <section class="card summary">
+        <h2><span class="dot"></span>Quote Summary</h2>
+        <div class="totline"><span class="k">Effective Area <span style="color:var(--txt-faint)">(incl. waste)</span></span><span class="v" id="oArea">0 ft²</span></div>
+        <div class="totline"><span class="k">Material Cost</span><span class="v" id="oMat">$0.00</span></div>
+        <div class="totline"><span class="k">Labor</span><span class="v" id="oLabor">$0.00</span></div>
+        <div class="totline"><span class="k">Additional Fees</span><span class="v" id="oExtra">$0.00</span></div>
+        <div class="totline"><span class="k">Subtotal (cost)</span><span class="v" id="oCost">$0.00</span></div>
+        <div class="totline"><span class="k">Markup <span id="oMarkPct" style="color:var(--ice)">(40%)</span></span><span class="v" id="oMark">$0.00</span></div>
+        <div class="totline grand"><span class="k">Total Price</span><span class="v chrome" id="oTotal">$0.00</span></div>
+        <div class="margin-pill"><span class="k">PROFIT MARGIN</span><span class="v" id="oMargin">0%</span></div>
+        <div class="profit-amt" id="oProfit">$0.00 profit</div>
+        <div class="tip">💡 Material cost includes your waste/overage %. Markup is applied on top of total cost — margin shows profit as a share of the final price.</div>
+      </section>
+
+      <section class="card">
+        <h2><span class="dot"></span>Saved Quotes</h2>
+        <div class="saved-list" id="savedList"></div>
+      </section>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast"></div>
+<div id="print-area"></div>
+
+<script>
+"use strict";
+/* JZac Designs — Offline Vinyl Quote Studio. Single file, no network, localStorage. */
+
+const SERVICES = [
+  { id:"wrap",    name:"Vehicle Wraps",       ico:"🚐", laborRate:75, defWaste:15 },
+  { id:"decals",  name:"Decals",              ico:"⭐", laborRate:55, defWaste:10 },
+  { id:"signage", name:"Signage",             ico:"🪧", laborRate:65, defWaste:8  },
+  { id:"window",  name:"Window Graphics",     ico:"🪟", laborRate:60, defWaste:12 },
+  { id:"letter",  name:"Commercial Lettering",ico:"🔤", laborRate:60, defWaste:10 },
+];
+
+const MATERIALS = {
+  wrap:   [
+    ["3M 2080 Wrap Film — Gloss",3.50],["3M 2080 Wrap Film — Matte",3.75],["3M 2080 Wrap Film — Satin",3.75],
+    ["3M 2080 — Carbon Fiber",4.25],["3M 2080 — Brushed Metal",4.50],["3M 2080 — Color Flip / ColorShift",8.50],
+    ["3M IJ180Cv3 + 8518 Laminate (printed)",4.25],["3M Envision 480mC (printed, non-PVC)",4.75],
+  ],
+  decals: [
+    ["3M Scotchcal IJ35C (printed, calendared)",2.25],["3M Controltac IJ180Cv3 (printed, cast)",3.40],
+    ["3M Scotchcal 3650 (cut, calendared)",2.40],["3M Scotchcal 7125 (cut, cast premium)",3.60],["3M Scotchlite 680 Reflective",4.80],
+  ],
+  signage:[
+    ["3M Scotchcal 3630 Translucent (backlit)",3.20],["3M Scotchcal 7725 ElectroCut (cast)",3.60],
+    ["3M Scotchcal 3650 Graphic Film",2.40],["3M IJ35C Print Film + 8518 Laminate",2.85],
+    ["Aluminum / Dibond + 3M Vinyl",9.00],["Coroplast 4mm + 3M Vinyl",4.50],["13oz Banner Vinyl",1.90],
+  ],
+  window: [
+    ["3M Scotchcal IJ8170 Perforated (one-way)",4.00],["3M FASARA Glass Finish (frosted)",5.20],
+    ["3M Frosted / Dusted Crystal Film",4.40],["3M Scotchcal 3635 Diffuser / Translucent",3.60],["3M IJ35C Clear Print + Laminate",3.40],
+  ],
+  letter: [
+    ["3M Scotchcal 7725 ElectroCut (cast)",2.90],["3M Scotchcal 100 Premium Cast",3.40],
+    ["3M Scotchcal 3650 (calendared)",2.50],["3M Scotchcal 7725 Metallic / Gold",5.20],["3M Scotchlite 680 Reflective",4.80],
+  ],
+};
+
+const LS_KEY="jzac_quotes_v1";
+const $=id=>document.getElementById(id);
+const fmt=n=>"$"+(isFinite(n)?n:0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const state={service:"wrap",areaMode:"sqft",dimUnit:"in"};
+
+function renderServices(){
+  const wrap=$("services");wrap.innerHTML="";
+  SERVICES.forEach(s=>{
+    const b=document.createElement("button");
+    b.className="svc"+(s.id===state.service?" active":"");
+    b.innerHTML=`<span class="ico">${s.ico}</span>${s.name}`;
+    b.onclick=()=>selectService(s.id,true);
+    wrap.appendChild(b);
+  });
+}
+function selectService(id,applyDefaults){
+  state.service=id;renderServices();
+  const sel=$("material");sel.innerHTML="";
+  MATERIALS[id].forEach(([label,rate])=>{
+    const o=document.createElement("option");o.value=rate;o.textContent=`${label} — $${rate.toFixed(2)}/ft²`;sel.appendChild(o);
+  });
+  if(applyDefaults){
+    const svc=SERVICES.find(s=>s.id===id);
+    $("matRate").value=MATERIALS[id][0][1];$("laborRate").value=svc.laborRate;$("waste").value=svc.defWaste;sel.selectedIndex=0;
+  }
+  calc();
+}
+$("material").addEventListener("change",e=>{$("matRate").value=e.target.value;calc();});
+
+$("areaMode").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  state.areaMode=b.dataset.mode;
+  [...$("areaMode").children].forEach(x=>x.classList.toggle("on",x===b));
+  $("sqftBlock").style.display=state.areaMode==="sqft"?"block":"none";
+  $("dimsBlock").style.display=state.areaMode==="dims"?"block":"none";calc();
+});
+$("dimUnit").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  state.dimUnit=b.dataset.u;
+  [...$("dimUnit").children].forEach(x=>x.classList.toggle("on",x===b));
+  $("dimWU").textContent=state.dimUnit;$("dimHU").textContent=state.dimUnit;calc();
+});
+
+function getArea(){
+  if(state.areaMode==="sqft")return parseFloat($("sqft").value)||0;
+  let w=parseFloat($("dimW").value)||0,h=parseFloat($("dimH").value)||0,q=parseInt($("dimQty").value)||1;
+  if(state.dimUnit==="in"){w/=12;h/=12;}
+  return w*h*q;
+}
+function calc(){
+  const rawArea=getArea();
+  const waste=(parseFloat($("waste").value)||0)/100;
+  const effArea=rawArea*(1+waste);
+  const matRate=parseFloat($("matRate").value)||0;
+  const matCost=effArea*matRate;
+  const laborHrs=parseFloat($("laborHrs").value)||0;
+  const laborRate=parseFloat($("laborRate").value)||0;
+  const laborCost=laborHrs*laborRate;
+  const extra=parseFloat($("extra").value)||0;
+  const cost=matCost+laborCost+extra;
+  const markPct=(parseFloat($("markup").value)||0)/100;
+  const markAmt=cost*markPct;
+  const total=cost+markAmt;
+  const profit=total-cost;
+  const margin=total>0?(profit/total*100):0;
+  if(state.areaMode==="dims")$("dimArea").value=rawArea.toFixed(2);
+  $("oArea").textContent=effArea.toLocaleString("en-US",{maximumFractionDigits:2})+" ft²";
+  $("oMat").textContent=fmt(matCost);$("oLabor").textContent=fmt(laborCost);$("oExtra").textContent=fmt(extra);
+  $("oCost").textContent=fmt(cost);$("oMark").textContent=fmt(markAmt);
+  $("oMarkPct").textContent="("+(parseFloat($("markup").value)||0)+"%)";
+  $("oTotal").textContent=fmt(total);$("oMargin").textContent=margin.toFixed(1)+"%";$("oProfit").textContent=fmt(profit)+" profit";
+  return {rawArea,effArea,waste,matRate,matCost,laborHrs,laborRate,laborCost,extra,cost,markPct,markAmt,total,profit,margin};
+}
+["sqft","dimW","dimH","dimQty","matRate","waste","laborHrs","laborRate","extra","markup"].forEach(id=>$(id).addEventListener("input",calc));
+
+let toastT;
+function toast(msg){const t=$("toast");t.innerHTML='<span class="chk">✓</span> '+msg;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2200);}
+
+function gather(){
+  const c=calc();
+  return {
+    id:state._editId||("q"+Date.now()),savedAt:new Date().toISOString(),
+    service:state.service,areaMode:state.areaMode,dimUnit:state.dimUnit,
+    custName:$("custName").value,jobName:$("jobName").value,quoteDate:$("quoteDate").value,quoteNum:$("quoteNum").value,
+    material:$("material").value,materialLabel:$("material").options[$("material").selectedIndex]?.text||"",
+    colorFinish:$("colorFinish").value,
+    sqft:$("sqft").value,dimW:$("dimW").value,dimH:$("dimH").value,dimQty:$("dimQty").value,
+    matRate:$("matRate").value,waste:$("waste").value,laborHrs:$("laborHrs").value,laborRate:$("laborRate").value,
+    extra:$("extra").value,markup:$("markup").value,notes:$("notes").value,calc:c
+  };
+}
+function apply(q){
+  state._editId=q.id;selectService(q.service,false);
+  const sel=$("material");
+  let idx=[...sel.options].findIndex(o=>o.text===q.materialLabel);
+  if(idx<0)idx=[...sel.options].findIndex(o=>o.value===q.material);
+  if(idx>=0)sel.selectedIndex=idx;
+  state.areaMode=q.areaMode||"sqft";
+  [...$("areaMode").children].forEach(x=>x.classList.toggle("on",x.dataset.mode===state.areaMode));
+  $("sqftBlock").style.display=state.areaMode==="sqft"?"block":"none";
+  $("dimsBlock").style.display=state.areaMode==="dims"?"block":"none";
+  state.dimUnit=q.dimUnit||"in";
+  [...$("dimUnit").children].forEach(x=>x.classList.toggle("on",x.dataset.u===state.dimUnit));
+  $("dimWU").textContent=state.dimUnit;$("dimHU").textContent=state.dimUnit;
+  const set=(id,v)=>{if(v!==undefined&&v!==null)$(id).value=v;};
+  set("colorFinish",q.colorFinish);
+  set("custName",q.custName);set("jobName",q.jobName);set("quoteDate",q.quoteDate);set("quoteNum",q.quoteNum);
+  set("sqft",q.sqft);set("dimW",q.dimW);set("dimH",q.dimH);set("dimQty",q.dimQty);
+  set("matRate",q.matRate);set("waste",q.waste);set("laborHrs",q.laborHrs);set("laborRate",q.laborRate);
+  set("extra",q.extra);set("markup",q.markup);set("notes",q.notes);
+  calc();window.scrollTo({top:0,behavior:"smooth"});
+}
+function loadAll(){try{return JSON.parse(localStorage.getItem(LS_KEY))||[]}catch(e){return[]}}
+function saveAll(arr){localStorage.setItem(LS_KEY,JSON.stringify(arr));}
+function saveQuote(){
+  if(!$("custName").value&&!$("jobName").value){if(!confirm("No customer or job name entered. Save anyway?"))return;}
+  const q=gather();const arr=loadAll();const i=arr.findIndex(x=>x.id===q.id);
+  if(i>=0)arr[i]=q;else arr.unshift(q);
+  saveAll(arr);renderSaved();toast(i>=0?"Quote updated":"Quote saved");
+}
+function renderSaved(){
+  const list=$("savedList");const arr=loadAll();
+  if(!arr.length){list.innerHTML='<div class="empty">No saved quotes yet.<br>Fill in a quote and tap <b>Save</b>.</div>';return;}
+  list.innerHTML="";
+  arr.forEach(q=>{
+    const svc=SERVICES.find(s=>s.id===q.service);
+    const el=document.createElement("div");el.className="qitem";
+    const nm=q.jobName||q.custName||"Untitled quote";
+    const sub=[q.custName&&q.jobName?q.custName:null,svc?svc.name:"",q.quoteDate].filter(Boolean).join(" · ");
+    el.innerHTML=`<div class="meta"><div class="nm">${svc?svc.ico+" ":""}${escapeHtml(nm)}</div><div class="info">${escapeHtml(sub)}</div></div>
+      <div class="amt chrome">${fmt(q.calc?.total||0)}</div>
+      <button class="del" title="Delete"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`;
+    el.querySelector(".meta").onclick=()=>{apply(q);toast("Quote loaded");};
+    el.querySelector(".amt").onclick=()=>{apply(q);toast("Quote loaded");};
+    el.querySelector(".del").onclick=ev=>{ev.stopPropagation();if(confirm("Delete this quote?")){saveAll(loadAll().filter(x=>x.id!==q.id));renderSaved();toast("Quote deleted");}};
+    list.appendChild(el);
+  });
+}
+function escapeHtml(s){return String(s||"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function newQuote(){
+  state._editId=null;
+  ["custName","jobName","quoteNum","colorFinish","sqft","dimW","dimH","laborHrs","notes"].forEach(id=>$(id).value="");
+  $("dimQty").value=1;$("extra").value=0;
+  $("quoteDate").value=new Date().toISOString().slice(0,10);
+  $("quoteNum").value="JZ-"+String(loadAll().length+1).padStart(4,"0");
+  selectService(state.service,true);toast("New quote started");window.scrollTo({top:0,behavior:"smooth"});
+}
+function buildPrint(){
+  const c=calc();const svc=SERVICES.find(s=>s.id===state.service);
+  const matLabel=($("material").options[$("material").selectedIndex]?.text||"").replace(/\s—.*/,"");
+  const colorFinish=$("colorFinish").value.trim();
+  const date=$("quoteDate").value?new Date($("quoteDate").value+"T00:00:00").toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"}):new Date().toLocaleDateString();
+  const areaDesc=state.areaMode==="dims"?`${$("dimW").value||0} × ${$("dimH").value||0} ${state.dimUnit} × ${$("dimQty").value||1} = ${c.rawArea.toFixed(2)} ft²`:`${c.rawArea.toFixed(2)} ft²`;
+  $("print-area").innerHTML=`
+    <div class="pa-head">
+      <div class="pa-mark">JZac Designs<span class="tag">Custom Vinyl &amp; Signage</span></div>
+      <div class="pa-quote"><div class="t">Quote</div><div class="meta">${escapeHtml($("quoteNum").value||"")}</div><div class="meta">${escapeHtml(date)}</div></div>
+    </div>
+    <div class="pa-grid">
+      <div><div class="lbl">Customer</div><div class="val">${escapeHtml($("custName").value||"—")}</div></div>
+      <div><div class="lbl">Project</div><div class="val">${escapeHtml($("jobName").value||"—")}</div></div>
+      <div><div class="lbl">Service</div><div class="val">${escapeHtml(svc?svc.name:"")}</div></div>
+      <div><div class="lbl">Material</div><div class="val">${escapeHtml(matLabel||"—")}</div></div>
+      <div><div class="lbl">Color / Finish</div><div class="val">${escapeHtml(colorFinish||"—")}</div></div>
+    </div>
+    <table class="pa-tbl">
+      <thead><tr><th>Description</th><th class="r">Detail</th><th class="r">Amount</th></tr></thead>
+      <tbody>
+        <tr><td>Material — ${escapeHtml(matLabel)}${colorFinish?` <span style="color:#666">(${escapeHtml(colorFinish)})</span>`:""}</td><td class="r">${areaDesc}${c.waste?` · +${(c.waste*100).toFixed(0)}% waste`:""} @ ${fmt(c.matRate)}/ft²</td><td class="r">${fmt(c.matCost)}</td></tr>
+        <tr><td>Labor &amp; Installation</td><td class="r">${c.laborHrs} hr @ ${fmt(c.laborRate)}/hr</td><td class="r">${fmt(c.laborCost)}</td></tr>
+        ${c.extra?`<tr><td>Additional / Setup Fees</td><td class="r"></td><td class="r">${fmt(c.extra)}</td></tr>`:""}
+        <tr class="sub"><td>Subtotal</td><td class="r"></td><td class="r">${fmt(c.cost)}</td></tr>
+        <tr><td>Markup</td><td class="r">${(c.markPct*100).toFixed(0)}%</td><td class="r">${fmt(c.markAmt)}</td></tr>
+        <tr class="total"><td>Total</td><td class="r"></td><td class="r">${fmt(c.total)}</td></tr>
+      </tbody>
+    </table>
+    <div class="pa-notes"><div class="lbl">Notes &amp; Special Instructions</div><div class="box">${escapeHtml($("notes").value)||"&nbsp;"}</div></div>
+    <div class="pa-foot">
+      <div class="terms"><b>Terms:</b> Quote valid for 30 days. 50% deposit required to schedule production. Final artwork proof approval required before printing. Prices subject to change after design review.</div>
+      <div style="text-align:right"><b>JZac Designs</b><br>JZacDesigns@proton.me<br>Thank you for your business!</div>
+    </div>`;
+}
+function exportPDF(){buildPrint();setTimeout(()=>window.print(),60);}
+
+$("btnNew").onclick=newQuote;$("btnSave").onclick=saveQuote;$("btnPdf").onclick=exportPDF;
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="s"){e.preventDefault();saveQuote();}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="p"){e.preventDefault();exportPDF();}
+});
+if("serviceWorker" in navigator && location.protocol!=="file:"){
+  const swCode=`self.addEventListener("install",e=>self.skipWaiting());self.addEventListener("activate",e=>e.waitUntil(self.clients.claim()));self.addEventListener("fetch",e=>{e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open("jzac-v1").then(ca=>ca.put(e.request,c));return r;}).catch(()=>caches.match(e.request)));});`;
+  navigator.serviceWorker.register(URL.createObjectURL(new Blob([swCode],{type:"text/javascript"}))).catch(()=>{});
+}
+selectService("wrap",true);
+$("quoteDate").value=new Date().toISOString().slice(0,10);
+$("quoteNum").value="JZ-"+String(loadAll().length+1).padStart(4,"0");
+renderSaved();calc();
+</script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "jzac-lead-generator-desktop",
+  "version": "1.0.0",
+  "description": "JZac Lead Generator - Windows desktop wrapper",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.jzacdesigns.leadgenerator",
+    "productName": "JZac Lead Generator",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "../public/icon.svg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.vercel/
+.env
+.env.local
+*.log
+.DS_Store
+
+# Claude Code local config
+.claude/
+
+# Electron
+electron/node_modules/
+electron/dist/
+
+# Generated icons (regenerate with: npm run gen:icons)
+# public/icons/
