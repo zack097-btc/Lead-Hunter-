@@ -15,3 +15,6 @@ electron/dist/
 
 # Generated icons (regenerate with: npm run gen:icons)
 # public/icons/
+
+.vercel
+.env*

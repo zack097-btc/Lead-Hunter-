@@ -5,21 +5,28 @@ import { applyCors, readBody } from '../_lib/http.js';
 // -----------------------------------------------------------------------------
 // Business discovery via OpenStreetMap's Overpass API.
 // 100% free: no API key, no credit card, no billing account.
-// (Data is community-sourced, so coverage varies by area vs. Google, but it's
-//  real business data and completely free to query.)
 // -----------------------------------------------------------------------------
 
 const MILES_TO_METERS = 1609.34;
-const MAX_RADIUS_METERS = 40000; // keep queries fast + within serverless time limits
+const MAX_RADIUS_METERS = 40000;
 const MAX_RESULTS = 50;
 
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
-];
+// Only the main instance is used on purpose. Do NOT add regional mirrors here:
+// overpass.osm.ch only holds Swiss data and answers US queries with HTTP 200 +
+// zero results, which silently looks like "no businesses nearby" rather than an
+// error. overpass.kumi.systems and overpass.private.coffee were unresponsive.
+const OVERPASS_ENDPOINTS = ['https://overpass-api.de/api/interpreter'];
+const OVERPASS_ATTEMPTS = 2; // the main instance throws transient 429/504s
+const OVERPASS_TIMEOUT_MS = 26000;
 
-// Map full US state names to 2-letter codes (Overpass addr:state is usually the
-// code already, but not always).
+// Search ladder. We only ever return the MAX_RESULTS nearest businesses, so a
+// dense area is fully satisfied by a small box. Querying the rep's full radius
+// up front makes Overpass compute a huge area and then throws ~all of it away —
+// which times out (504) on 10-25mi in a city. Instead we start small and only
+// widen when we haven't found enough. Rural areas do widen, but sparse data
+// keeps those queries cheap either way.
+const LADDER_MILES = [2, 8];
+
 const STATE_NAME_TO_CODE = {
   washington: 'WA',
   'new york': 'NY',
@@ -68,11 +75,37 @@ function deriveType(t = {}) {
   return String(raw).replace(/_/g, ' ');
 }
 
+// Overpass bbox queries use the spatial index and are dramatically faster than
+// `around:` radius queries, which time out server-side on large radii.
+function boundingBox(lat, lng, radiusMeters) {
+  const dLat = radiusMeters / 111320;
+  const dLng = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180));
+  return [lat - dLat, lng - dLng, lat + dLat, lng + dLng].map((n) => n.toFixed(5)).join(',');
+}
+
+function buildQuery(bb) {
+  return `[out:json][timeout:50];
+(
+  nwr["shop"]["name"](${bb});
+  nwr["office"]["name"](${bb});
+  nwr["craft"]["name"](${bb});
+  nwr["amenity"~"^(restaurant|cafe|bar|fast_food|pub|bakery|pharmacy|bank|fuel|car_wash|car_rental|dentist|doctors|clinic|veterinary|marketplace|cinema|nightclub)$"]["name"](${bb});
+  nwr["tourism"~"^(hotel|motel|guest_house|hostel)$"]["name"](${bb});
+  nwr["leisure"~"^(fitness_centre|sports_centre)$"]["name"](${bb});
+);
+out center ${MAX_RESULTS * 6};`;
+}
+
 async function queryOverpass(ql) {
   let lastErr;
-  for (const url of OVERPASS_ENDPOINTS) {
+  const targets = [];
+  for (let i = 0; i < OVERPASS_ATTEMPTS; i++) targets.push(...OVERPASS_ENDPOINTS);
+
+  for (let i = 0; i < targets.length; i++) {
+    const url = targets[i];
+    if (i > 0) await new Promise((r) => setTimeout(r, 1500)); // brief backoff
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timer = setTimeout(() => controller.abort(), OVERPASS_TIMEOUT_MS);
     try {
       const r = await fetch(url, {
         method: 'POST',
@@ -88,13 +121,62 @@ async function queryOverpass(ql) {
         lastErr = new Error(`Overpass responded ${r.status}`);
         continue;
       }
-      return await r.json();
+      // Overpass returns plain text (not JSON) when rate-limiting or erroring.
+      const text = await r.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        lastErr = new Error(`Overpass returned a non-JSON response: ${text.slice(0, 120)}`);
+        continue;
+      }
+      // Overpass signals its own server-side timeout via `remark` while still
+      // returning HTTP 200 with an empty set.
+      if (!(data.elements || []).length && data.remark) {
+        lastErr = new Error(`Overpass remark: ${data.remark}`);
+        continue;
+      }
+      return data;
     } catch (err) {
       clearTimeout(timer);
       lastErr = err;
     }
   }
-  throw lastErr || new Error('All Overpass endpoints failed');
+  throw lastErr || new Error('Overpass request failed');
+}
+
+// Convert raw Overpass elements into lead objects within the true radius.
+function toBusinesses(data, lat, lng, radius) {
+  const seen = new Set();
+  const out = [];
+  for (const el of data.elements || []) {
+    const t = el.tags || {};
+    if (!t.name) continue;
+    const bLat = el.lat ?? el.center?.lat;
+    const bLng = el.lon ?? el.center?.lon;
+    if (typeof bLat !== 'number' || typeof bLng !== 'number') continue;
+
+    const key = `${t.name}|${bLat.toFixed(4)},${bLng.toFixed(4)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const dist = distanceMeters(lat, lng, bLat, bLng);
+    if (dist > radius) continue; // bbox is a square; keep the circle
+
+    out.push({
+      id: `${el.type}/${el.id}`,
+      name: t.name,
+      address: buildAddress(t),
+      type: deriveType(t),
+      types: [t.shop, t.amenity, t.office, t.craft, t.tourism, t.leisure].filter(Boolean),
+      phone: t.phone || t['contact:phone'] || '',
+      lat: bLat,
+      lng: bLng,
+      state: normalizeState(t['addr:state']),
+      _dist: dist
+    });
+  }
+  return out.sort((a, b) => a._dist - b._dist);
 }
 
 export default async function handler(req, res) {
@@ -109,61 +191,35 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'lat and lng (numbers) are required' });
 
   const radius = Math.min(Math.max(Number(radiusMiles) || 5, 1) * MILES_TO_METERS, MAX_RADIUS_METERS);
-  const R = Math.round(radius);
 
-  // Union query: named commercial POIs (shops, offices, crafts, key amenities,
-  // hotels, gyms) within the radius. `out center` gives coords for ways too.
-  const ql = `[out:json][timeout:20];
-(
-  nwr(around:${R},${lat},${lng})["shop"]["name"];
-  nwr(around:${R},${lat},${lng})["office"]["name"];
-  nwr(around:${R},${lat},${lng})["craft"]["name"];
-  nwr(around:${R},${lat},${lng})["amenity"~"^(restaurant|cafe|bar|fast_food|pub|bakery|pharmacy|bank|fuel|car_wash|car_rental|dentist|doctors|clinic|veterinary|marketplace|cinema|nightclub)$"]["name"];
-  nwr(around:${R},${lat},${lng})["tourism"~"^(hotel|motel|guest_house|hostel)$"]["name"];
-  nwr(around:${R},${lat},${lng})["leisure"~"^(fitness_centre|sports_centre)$"]["name"];
-);
-out center ${MAX_RESULTS * 3};`;
+  // Ascending search steps, each capped at the requested radius.
+  const steps = [...new Set([...LADDER_MILES.map((m) => m * MILES_TO_METERS), radius])]
+    .filter((r) => r <= radius)
+    .sort((a, b) => a - b);
 
-  let data;
-  try {
-    data = await queryOverpass(ql);
-  } catch (err) {
+  let best = [];
+  let lastErr = null;
+  for (const stepRadius of steps) {
+    try {
+      const data = await queryOverpass(buildQuery(boundingBox(lat, lng, stepRadius)));
+      const found = toBusinesses(data, lat, lng, radius);
+      if (found.length > best.length) best = found;
+      if (best.length >= MAX_RESULTS) break; // enough nearby leads; stop widening
+    } catch (err) {
+      lastErr = err;
+      // Keep whatever a smaller step already found rather than failing outright.
+      if (best.length) break;
+    }
+  }
+
+  if (!best.length && lastErr) {
     return res.status(502).json({
-      error:
-        'Business lookup timed out. Try a smaller radius (the free map service is slower on big areas).',
-      detail: String(err)
+      error: 'The free map service is busy right now. Please try again in a moment.',
+      detail: String(lastErr.message || lastErr)
     });
   }
 
-  const seen = new Set();
-  const businesses = [];
-  for (const el of data.elements || []) {
-    const t = el.tags || {};
-    if (!t.name) continue;
-    const bLat = el.lat ?? el.center?.lat;
-    const bLng = el.lng ?? el.lon ?? el.center?.lon;
-    if (typeof bLat !== 'number' || typeof bLng !== 'number') continue;
-
-    const key = `${t.name}|${bLat.toFixed(4)},${bLng.toFixed(4)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    businesses.push({
-      id: `${el.type}/${el.id}`,
-      name: t.name,
-      address: buildAddress(t),
-      type: deriveType(t),
-      types: [t.shop, t.amenity, t.office, t.craft, t.tourism, t.leisure].filter(Boolean),
-      phone: t.phone || t['contact:phone'] || '',
-      lat: bLat,
-      lng: bLng,
-      state: normalizeState(t['addr:state']),
-      _dist: distanceMeters(lat, lng, bLat, bLng)
-    });
-  }
-
-  businesses.sort((a, b) => a._dist - b._dist);
-  const trimmed = businesses.slice(0, MAX_RESULTS).map(({ _dist, ...b }) => b);
+  const businesses = best.slice(0, MAX_RESULTS).map(({ _dist, ...b }) => b);
 
   await initDb();
   await logActivity({
@@ -171,8 +227,8 @@ out center ${MAX_RESULTS * 3};`;
     type: 'search',
     lat,
     lng,
-    detail: { radiusMiles, count: trimmed.length }
+    detail: { radiusMiles, count: businesses.length }
   });
 
-  res.status(200).json({ businesses: trimmed });
+  res.status(200).json({ businesses });
 }

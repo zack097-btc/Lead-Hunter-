@@ -3,6 +3,11 @@
   "framework": "vite",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 90
+    }
+  },
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/" }
   ]
