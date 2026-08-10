@@ -127,5 +127,34 @@ await check('no INVITE_CODE configured ⇒ signup still works (no lockout)', asy
   assert.equal(res.code, 201, `expected 201, got ${res.code}`);
 });
 
+console.log('\n--- fail closed without JWT_SECRET ---');
+
+await check('a deployed instance with no JWT_SECRET refuses to verify tokens', async () => {
+  delete process.env.JWT_SECRET;
+  process.env.POSTGRES_URL = 'postgres://looks-deployed';   // marks it as deployed
+  const auth = await import('./api/_lib/auth.js?v=' + Math.random());
+  delete process.env.POSTGRES_URL;
+  assert.equal(auth.SECRET_MISSING, true, 'should have detected the missing secret');
+  // the old published fallback must not validate anything
+  const jwt = (await import('jsonwebtoken')).default;
+  const forged = jwt.sign({ uid: 1, role: 'admin' }, 'dev-insecure-secret-change-me');
+  assert.equal(auth.verifyToken(forged), null, 'a token forged with the OLD PUBLIC secret was accepted');
+  assert.equal(auth.getAuthUser({ headers: { authorization: 'Bearer ' + forged } }), null,
+    'getAuthUser accepted a forged admin token');
+});
+
+await check('with a real JWT_SECRET, normal tokens still work', async () => {
+  process.env.JWT_SECRET = 'a-genuinely-long-random-secret-value-123456';
+  const auth = await import('./api/_lib/auth.js?v=' + Math.random());
+  assert.equal(auth.SECRET_MISSING, false);
+  const t = auth.signToken({ id: 7, role: 'admin', email: 'z@x.com', name: 'Zack' });
+  const back = auth.verifyToken(t);
+  assert.equal(back.uid, 7);
+  assert.equal(back.role, 'admin');
+  const jwt = (await import('jsonwebtoken')).default;
+  const forged = jwt.sign({ uid: 1, role: 'admin' }, 'dev-insecure-secret-change-me');
+  assert.equal(auth.verifyToken(forged), null, 'forged token accepted despite a real secret');
+});
+
 console.log(fails ? `\n${fails} CHECK(S) FAILED` : '\nALL AUTH CHECKS PASSED');
 process.exit(fails ? 1 : 0);
