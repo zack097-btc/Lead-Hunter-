@@ -19,6 +19,9 @@ export default function Dashboard() {
   const [businesses, setBusinesses] = useState([]);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [meta, setMeta] = useState(null);
+  const [slowNote, setSlowNote] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);
   const didInitialSearch = useRef(false);
 
@@ -48,19 +51,27 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coords]);
 
-  async function search() {
+  async function search({ force = false } = {}) {
     if (!coords) {
       setSearchError('Waiting for your GPS location…');
       return;
     }
     setSearching(true);
     setSearchError('');
+    setMeta(null);
+    // The free map service can genuinely take twenty seconds on a bad day.
+    // Saying so out loud beats a silent spinner, which is the thing that makes
+    // people decide the app has frozen and close it.
+    const slow = setTimeout(() => setSlowNote(true), 6000);
     try {
-      const { businesses } = await api.nearby(coords.lat, coords.lng, radius);
-      setBusinesses(businesses);
+      const res = await api.nearby(coords.lat, coords.lng, radius, { force });
+      setBusinesses(res.businesses || []);
+      setMeta(res.meta || null);
     } catch (err) {
       setSearchError(err.message);
     } finally {
+      clearTimeout(slow);
+      setSlowNote(false);
       setSearching(false);
     }
   }
@@ -86,6 +97,9 @@ export default function Dashboard() {
   // Apply the state territory filter. Businesses with no detectable state are
   // kept (so reps never lose a lead just because the address didn't parse).
   const visible = businesses.filter((b) => !b.state || states.includes(b.state));
+  // Worth stating out loud: a filter that silently removes leads is how people
+  // conclude the search is broken.
+  const hiddenByState = businesses.length - visible.length;
 
   return (
     <div className="app">
@@ -102,26 +116,72 @@ export default function Dashboard() {
       {tab !== 'admin' && (
         <div className="controls">
           <RadiusSelector value={radius} onChange={setRadius} />
-          <StateFilter selected={states} onToggle={toggleState} />
-          <div className="row">
-            <button className="btn" style={{ marginTop: 0 }} onClick={search} disabled={searching}>
+
+          {/* Territory is a start-of-day setting, not a per-search one, so it
+              folds away. It stays one tap from view and announces itself when
+              it is actually filtering something out. */}
+          <button
+            className="filter-toggle"
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            {showFilters ? '▾' : '▸'} Territory · {states.length} state
+            {states.length === 1 ? '' : 's'}
+            {hiddenByState > 0 ? ` · ${hiddenByState} hidden` : ''}
+          </button>
+          {showFilters && <StateFilter selected={states} onToggle={toggleState} />}
+          <div className="row search-row">
+            <button
+              className="btn"
+              style={{ marginTop: 0 }}
+              onClick={() => search()}
+              disabled={searching || !coords}
+            >
               {searching ? 'Searching…' : 'Search this area'}
             </button>
+            {!!businesses.length && !searching && (
+              <button
+                className="btn ghost"
+                style={{ marginTop: 0 }}
+                onClick={() => search({ force: true })}
+                title="Ignore the saved copy and ask the map service again"
+              >
+                ↻
+              </button>
+            )}
           </div>
+
           <div className="statusline">
             {geoError
               ? `📍 ${geoError}`
               : coords
-              ? `📍 ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)} · ${visible.length} leads`
+              ? `📍 ${visible.length} lead${visible.length === 1 ? '' : 's'} within ${radius} mi`
               : '📍 Acquiring GPS…'}
+            {meta && !searching && (
+              <span className="dim">
+                {' '}
+                · {meta.cached ? 'saved copy' : `${(meta.ms / 1000).toFixed(1)}s`}
+              </span>
+            )}
           </div>
+
+          {slowNote && (
+            <div className="note">
+              Still going — the free map service is slow right now. It has up to a
+              minute before it gives up, and a smaller radius almost always gets
+              through faster.
+            </div>
+          )}
+          {meta?.partial && <div className="note">{meta.note}</div>}
           {searchError && <div className="error" style={{ textAlign: 'left' }}>{searchError}</div>}
         </div>
       )}
 
       <div className="content">
         {tab === 'map' && <MapView center={coords} businesses={visible} onSelect={openBusiness} />}
-        {tab === 'list' && <ListView businesses={visible} onSelect={openBusiness} />}
+        {tab === 'list' && (
+          <ListView businesses={visible} onSelect={openBusiness} searching={searching} />
+        )}
         {tab === 'admin' && <AdminPanel />}
       </div>
 
