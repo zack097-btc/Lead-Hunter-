@@ -36,8 +36,8 @@ async function request(path, { method = 'GET', body } = {}) {
 
 export const api = {
   login: (email, password) => request('/api/auth/login', { method: 'POST', body: { email, password } }),
-  register: (email, password, name) =>
-    request('/api/auth/register', { method: 'POST', body: { email, password, name } }),
+  register: (email, password, name, invite) =>
+    request('/api/auth/register', { method: 'POST', body: { email, password, name, invite } }),
   me: () => request('/api/auth/me'),
   // `force` skips the week-long server cache when somebody wants a fresh look.
   nearby: (lat, lng, radiusMiles, { force = false } = {}) =>
