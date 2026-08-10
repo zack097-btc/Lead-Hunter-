@@ -55,6 +55,19 @@ async function doInit() {
       );
     `);
     await p.query(`CREATE INDEX IF NOT EXISTS idx_activity_user ON activity(user_id);`);
+    // Overpass is a free, shared and frequently slow service. Caching its raw
+    // answers is the single biggest speed win available: a second search in an
+    // area somebody already covered returns instantly instead of waiting on it.
+    // The RAW elements are stored, not the finished lead list, so distance and
+    // ranking are still computed fresh for wherever the rep is standing.
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS lead_cache (
+        cache_key TEXT PRIMARY KEY,
+        elements JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+    await p.query(`CREATE INDEX IF NOT EXISTS idx_lead_cache_age ON lead_cache(created_at);`);
   } else {
     if (!mem) mem = { users: [], activity: [], userSeq: 1, actSeq: 1 };
     console.warn(
@@ -129,6 +142,49 @@ export async function listUsers(role) {
   let list = mem ? mem.users : [];
   if (role) list = list.filter((u) => u.role === role);
   return list.map(({ id, email, name, role, created_at }) => ({ id, email, name, role, created_at }));
+}
+
+// ----------------------------------------------------------- lead cache
+//
+// OpenStreetMap moves slowly - a plumber does not relocate this week - so a
+// week-old answer is as good as a fresh one and hugely faster. `force` on the
+// request bypasses this when somebody genuinely wants to re-look.
+
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const memCache = new Map(); // survives within a warm serverless instance
+
+export async function getCachedElements(key) {
+  const hit = memCache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.elements;
+  if (!CONN) return null;
+  try {
+    const { rows } = await getPool().query(
+      `SELECT elements, created_at FROM lead_cache WHERE cache_key = $1`,
+      [key]
+    );
+    if (!rows[0]) return null;
+    if (Date.now() - new Date(rows[0].created_at).getTime() > CACHE_TTL_MS) return null;
+    memCache.set(key, { at: Date.now(), elements: rows[0].elements });
+    return rows[0].elements;
+  } catch {
+    return null; // a cache that errors must never break a search
+  }
+}
+
+export async function putCachedElements(key, elements) {
+  memCache.set(key, { at: Date.now(), elements });
+  if (memCache.size > 40) memCache.delete(memCache.keys().next().value);
+  if (!CONN) return;
+  try {
+    await getPool().query(
+      `INSERT INTO lead_cache (cache_key, elements, created_at)
+       VALUES ($1, $2, now())
+       ON CONFLICT (cache_key) DO UPDATE SET elements = EXCLUDED.elements, created_at = now()`,
+      [key, JSON.stringify(elements)]
+    );
+  } catch {
+    /* caching is an optimisation, never a requirement */
+  }
 }
 
 // ------------------------------------------------------------- activity
