@@ -1,10 +1,13 @@
 import { initDb, getUserByEmail, logActivity } from '../_lib/db.js';
-import { comparePassword, signToken } from '../_lib/auth.js';
+import { comparePassword, signToken, SECRET_MISSING, SECRET_MISSING_MESSAGE } from '../_lib/auth.js';
 import { applyCors, readBody } from '../_lib/http.js';
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Fail closed with an explanation rather than a stack trace.
+  if (SECRET_MISSING) return res.status(503).json({ error: SECRET_MISSING_MESSAGE });
 
   await initDb();
   const { email, password } = readBody(req);

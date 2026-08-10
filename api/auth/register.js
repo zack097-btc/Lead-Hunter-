@@ -1,5 +1,5 @@
 import { initDb, getUserByEmail, createUser, logActivity } from '../_lib/db.js';
-import { hashPassword, signToken } from '../_lib/auth.js';
+import { hashPassword, signToken, SECRET_MISSING, SECRET_MISSING_MESSAGE } from '../_lib/auth.js';
 import { applyCors, readBody } from '../_lib/http.js';
 
 // Self-service signup. New accounts are always created as role "rep".
@@ -7,6 +7,9 @@ import { applyCors, readBody } from '../_lib/http.js';
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // Fail closed with an explanation rather than a stack trace.
+  if (SECRET_MISSING) return res.status(503).json({ error: SECRET_MISSING_MESSAGE });
 
   await initDb();
   const { email, password, name, invite } = readBody(req);
