@@ -9,7 +9,24 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   await initDb();
-  const { email, password, name } = readBody(req);
+  const { email, password, name, invite } = readBody(req);
+
+  // Invite gate. This app sits on a public URL, so without this anybody who
+  // finds it can create an account and use it. When INVITE_CODE is set in the
+  // environment a new account needs it; when it is not set, signup stays open
+  // and says so in the log. Deliberately that way round and not the reverse:
+  // a gate that defaults to ON with no code configured would lock the owner out
+  // of his own app on the next deploy.
+  const required = (process.env.INVITE_CODE || '').trim();
+  if (required) {
+    if (String(invite || '').trim() !== required)
+      return res
+        .status(403)
+        .json({ error: 'That invite code is not right. Ask Zack for the current one.' });
+  } else {
+    console.warn('[auth] INVITE_CODE is not set — anyone who finds this URL can register.');
+  }
+
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   if (String(password).length < 6)
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
