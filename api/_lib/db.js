@@ -4,7 +4,7 @@
 //   2. In-memory - fallback for quick local testing with `vercel dev`.
 //                  Data is NOT persisted across restarts.
 import pkg from 'pg';
-import { hashPassword } from './auth.js';
+import { hashPassword, comparePassword } from './auth.js';
 
 const { Pool } = pkg;
 const CONN = process.env.POSTGRES_URL || process.env.DATABASE_URL || '';
@@ -78,15 +78,60 @@ async function doInit() {
   await seedAdmin();
 }
 
-async function seedAdmin() {
-  const email = (process.env.ADMIN_EMAIL || 'admin@jzacdesigns.com').toLowerCase().trim();
-  const existing = await getUserByEmail(email);
-  if (existing) return;
-  const password = process.env.ADMIN_PASSWORD || 'change-this-now';
+export async function seedAdmin() {
+  const email = (process.env.ADMIN_EMAIL || '').toLowerCase().trim();
+  const password = process.env.ADMIN_PASSWORD || '';
   const name = process.env.ADMIN_NAME || 'JZac Admin';
+
+  // No default password, ever. The previous version fell back to the string
+  // 'change-this-now', which is published in .env.example in a PUBLIC repo - so
+  // on a public URL that was an open admin account for anyone who read the
+  // repository. An app with no admin is a nuisance; an app with a world-readable
+  // admin is a breach. If these are not configured, no admin exists.
+  if (!email || !password) {
+    console.warn(
+      '[db] No admin seeded: set ADMIN_EMAIL and ADMIN_PASSWORD in the environment. ' +
+        'Refusing to create an admin with a default password.'
+    );
+    return;
+  }
+
+  const existing = await getUserByEmail(email);
+
+  // The environment is the single source of truth for the admin credential.
+  //
+  // The old code returned early when the account already existed, which meant
+  // that once an admin had been seeded its password could never be changed -
+  // there is no password-reset flow in this app, so that was a one-way door.
+  // Now, changing ADMIN_PASSWORD in the hosting environment and redeploying is
+  // the recovery path, and it also PROMOTES an existing account: register on
+  // your phone like anybody else, then put that email in ADMIN_EMAIL and the
+  // account becomes the admin, keeping its history.
+  if (existing) {
+    const same = await comparePassword(password, existing.password_hash).catch(() => false);
+    if (same && existing.role === 'admin') return; // already correct, nothing to do
+    const password_hash = same ? existing.password_hash : await hashPassword(password);
+    await setUserAdmin(existing.id, password_hash);
+    console.log(`[db] Admin account updated from the environment: ${email}`);
+    return;
+  }
+
   const password_hash = await hashPassword(password);
   await createUser({ email, name, password_hash, role: 'admin' });
   console.log(`[db] Seeded admin account: ${email}`);
+}
+
+// Promote a user to admin and set their password hash. Used only by the seeder.
+async function setUserAdmin(id, password_hash) {
+  if (CONN) {
+    await getPool().query(`UPDATE users SET role = 'admin', password_hash = $2 WHERE id = $1`, [
+      id,
+      password_hash
+    ]);
+    return;
+  }
+  const u = mem && mem.users.find((x) => x.id === Number(id));
+  if (u) { u.role = 'admin'; u.password_hash = password_hash; }
 }
 
 // ---------------------------------------------------------------- users
