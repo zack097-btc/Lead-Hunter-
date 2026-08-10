@@ -39,8 +39,9 @@ export const api = {
   register: (email, password, name) =>
     request('/api/auth/register', { method: 'POST', body: { email, password, name } }),
   me: () => request('/api/auth/me'),
-  nearby: (lat, lng, radiusMiles, types) =>
-    request('/api/places/nearby', { method: 'POST', body: { lat, lng, radiusMiles, types } }),
+  // `force` skips the week-long server cache when somebody wants a fresh look.
+  nearby: (lat, lng, radiusMiles, { force = false } = {}) =>
+    request('/api/places/nearby', { method: 'POST', body: { lat, lng, radiusMiles, force } }),
   pitch: (businessName, businessType, address) =>
     request('/api/ai/pitch', { method: 'POST', body: { businessName, businessType, address } }),
   logActivity: (entry) => request('/api/activity', { method: 'POST', body: entry }),
