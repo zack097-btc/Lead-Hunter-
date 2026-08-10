@@ -7,6 +7,7 @@ export default function Login() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [invite, setInvite] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -16,7 +17,7 @@ export default function Login() {
     setBusy(true);
     try {
       if (mode === 'login') await login(email, password);
-      else await register(email, password, name);
+      else await register(email, password, name, invite);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -67,6 +68,21 @@ export default function Login() {
           placeholder="••••••••"
           required
         />
+
+        {mode === 'register' && (
+          <>
+            <label htmlFor="invite">Invite code</label>
+            <input
+              id="invite"
+              type="text"
+              autoComplete="off"
+              autoCapitalize="none"
+              value={invite}
+              onChange={(e) => setInvite(e.target.value)}
+              placeholder="from Zack"
+            />
+          </>
+        )}
 
         {error && <div className="error">{error}</div>}
 
