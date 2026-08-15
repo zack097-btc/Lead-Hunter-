@@ -121,6 +121,79 @@ I was passing by ${name} and noticed ${cat.noticed}. We help ${cat.label}s stand
 The best part — we do free mockups, so you can see exactly how it'll look before you spend a dollar. Who handles signage and branding for you? Is that you, or is there someone I could leave a card with?`;
 }
 
+// -----------------------------------------------------------------------------
+// AI-written pitches, when a key is configured.
+//
+// The templates above stay as the floor. If ANTHROPIC_API_KEY is set the copy is
+// written for the specific business; if the key is absent, or the call fails, or
+// it is slow, the template answer goes out instead. A rep standing in a doorway
+// gets usable words either way — a pitch tool that shows an error message has
+// failed at the only thing it is for.
+//
+// Cost is roughly a tenth of a cent per pitch on the small model.
+// -----------------------------------------------------------------------------
+const AI_MODEL = process.env.ANTHROPIC_MODEL || 'claude-3-5-haiku-latest';
+const AI_TIMEOUT_MS = 12000;
+
+function aiPrompt({ businessName, businessType, address, cat, distanceMiles }) {
+  return `You write cold outreach for JZAC Designs, a vinyl and signage shop in Mill Creek, Washington. The real work: vehicle lettering and full wraps, USDOT numbers for anything that hauls, storefront window and door graphics, boat registration numbers and boat names, banners, and cut decals.
+
+Write outreach for this specific business:
+  Name: ${businessName}
+  Type: ${businessType}${address ? `\n  Address: ${address}` : ''}${distanceMiles != null ? `\n  About ${distanceMiles} miles from the rep` : ''}
+  Best guess at what they need: ${cat.products}
+
+Return ONLY valid JSON, no markdown fence, in exactly this shape:
+{"email":"<subject line, then a blank line, then the body>","pitch":"<what to say walking in>"}
+
+The email: a subject line under 60 characters, then a blank line, then under 120 words. Plain sentences. Say what JZAC does for a business like this one specifically. No "I hope this finds you well", no "leverage", no "solutions", no exclamation marks. Sign off as JZAC Designs, Mill Creek WA, (509) 720-8239.
+
+The walk-in pitch: under 70 words, to be spoken aloud by someone who has just come through the door. An opening line, the one thing worth raising with THIS kind of business, and a question that is easy to answer. Never mention price. Never claim to have noticed something you could not have seen from the street.
+
+Write like a tradesperson who does good work, not like a marketer.`;
+}
+
+async function aiPitch(input) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        max_tokens: 900,
+        messages: [{ role: 'user', content: aiPrompt(input) }]
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    if (!r.ok) {
+      console.warn('[pitch] Anthropic responded', r.status, (await r.text()).slice(0, 160));
+      return null;
+    }
+    const data = await r.json();
+    const text = (data.content || []).map((c) => c.text || '').join('').trim();
+    // Forgiving about a stray code fence; strict about the result.
+    const json = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    const out = JSON.parse(json);
+    if (!out || typeof out.email !== 'string' || typeof out.pitch !== 'string') return null;
+    if (!out.email.trim() || !out.pitch.trim()) return null;
+    return { email: out.email.trim(), pitch: out.pitch.trim() };
+  } catch (e) {
+    clearTimeout(timer);
+    console.warn('[pitch] AI unavailable, falling back to template:', e && e.message);
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -128,21 +201,27 @@ export default async function handler(req, res) {
   const auth = getAuthUser(req);
   if (!auth) return res.status(401).json({ error: 'Not authenticated' });
 
-  const { businessName, businessType = 'business', address = '' } = readBody(req);
+  const { businessName, businessType = 'business', address = '', distanceMiles = null } = readBody(req);
   if (!businessName) return res.status(400).json({ error: 'businessName is required' });
 
   const cat = categorize(`${businessType} ${businessName}`);
-  const email = buildEmail(businessName, cat);
-  const pitch = buildPitch(businessName, cat);
+  let email = buildEmail(businessName, cat);
+  let pitch = buildPitch(businessName, cat);
+  let source = 'template';
 
-  await initDb();
-  await logActivity({
-    user_id: auth.uid,
-    type: 'generate_pitch',
-    business_name: businessName,
-    business_address: address,
-    detail: { businessType }
-  });
+  const ai = await aiPitch({ businessName, businessType, address, cat, distanceMiles });
+  if (ai) { email = ai.email; pitch = ai.pitch; source = 'ai'; }
 
-  res.status(200).json({ email, pitch });
+  // Fire-and-forget so a logging problem never costs the rep their pitch.
+  initDb()
+    .then(() => logActivity({
+      user_id: auth.uid,
+      type: 'generate_pitch',
+      business_name: businessName,
+      business_address: address,
+      detail: { businessType, source }
+    }))
+    .catch(() => {});
+
+  res.status(200).json({ email, pitch, source });
 }
