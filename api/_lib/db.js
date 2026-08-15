@@ -68,8 +68,38 @@ async function doInit() {
       );
     `);
     await p.query(`CREATE INDEX IF NOT EXISTS idx_lead_cache_age ON lead_cache(created_at);`);
+
+    // ---- lead status ------------------------------------------------------
+    // Without this the app is a directory, not a sales tool: every search
+    // hands a rep the same doors they knocked on last week, and nobody can
+    // tell what came of any of it. Keyed by the OpenStreetMap id, which is
+    // stable, so a lead keeps its history across searches and across reps.
+    //
+    // Status is shared across the team on purpose. Two reps working the same
+    // street should not both walk into a business that already said no.
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS lead_status (
+        business_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        note TEXT NOT NULL DEFAULT '',
+        business_name TEXT NOT NULL DEFAULT '',
+        business_address TEXT NOT NULL DEFAULT '',
+        lat DOUBLE PRECISION,
+        lng DOUBLE PRECISION,
+        updated_by INTEGER,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+    await p.query(`CREATE INDEX IF NOT EXISTS idx_lead_status_updated ON lead_status(updated_at DESC);`);
+
+    // ---- columns added after the first release ----------------------------
+    // ALTER ... IF NOT EXISTS so an existing database upgrades itself on the
+    // next deploy rather than needing anyone to run SQL by hand.
+    await p.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT true;`);
+    await p.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMPTZ;`);
   } else {
-    if (!mem) mem = { users: [], activity: [], userSeq: 1, actSeq: 1 };
+    if (!mem) mem = { users: [], activity: [], leadStatus: new Map(), userSeq: 1, actSeq: 1 };
+    if (!mem.leadStatus) mem.leadStatus = new Map();
     console.warn(
       '[db] No POSTGRES_URL set - using in-memory store. Data will NOT persist. ' +
         'Set POSTGRES_URL in production.'
@@ -153,10 +183,12 @@ export async function createUser({ email, name, password_hash, role = 'rep' }) {
     name,
     password_hash,
     role,
+    active: true,
+    last_seen: null,
     created_at: new Date().toISOString()
   };
   mem.users.push(user);
-  return { id: user.id, email, name, role, created_at: user.created_at };
+  return { id: user.id, email, name, role, active: true, created_at: user.created_at };
 }
 
 export async function getUserByEmail(email) {
@@ -178,15 +210,17 @@ export async function getUserById(id) {
 
 export async function listUsers(role) {
   if (CONN) {
+    const cols = `id, email, name, role, created_at, active, last_seen`;
     const q = role
-      ? [`SELECT id, email, name, role, created_at FROM users WHERE role = $1 ORDER BY id`, [role]]
-      : [`SELECT id, email, name, role, created_at FROM users ORDER BY id`, []];
+      ? [`SELECT ${cols} FROM users WHERE role = $1 ORDER BY id`, [role]]
+      : [`SELECT ${cols} FROM users ORDER BY id`, []];
     const { rows } = await getPool().query(q[0], q[1]);
     return rows;
   }
   let list = mem ? mem.users : [];
   if (role) list = list.filter((u) => u.role === role);
-  return list.map(({ id, email, name, role, created_at }) => ({ id, email, name, role, created_at }));
+  return list.map(({ id, email, name, role, created_at, active, last_seen }) =>
+    ({ id, email, name, role, created_at, active: active !== false, last_seen: last_seen || null }));
 }
 
 // ----------------------------------------------------------- lead cache
@@ -230,6 +264,113 @@ export async function putCachedElements(key, elements) {
   } catch {
     /* caching is an optimisation, never a requirement */
   }
+}
+
+// ---------------------------------------------------------- lead status
+//
+// The set of statuses is deliberately short. A rep standing on a pavement in
+// the rain will use four buttons; they will not use eleven.
+
+export const LEAD_STATUSES = ['contacted', 'quoted', 'won', 'not_interested'];
+
+export async function setLeadStatus({ business_id, status, note = '', business_name = '',
+                                      business_address = '', lat = null, lng = null, updated_by }) {
+  const row = {
+    business_id: String(business_id), status: String(status), note: String(note || ''),
+    business_name, business_address, lat, lng, updated_by, updated_at: new Date().toISOString()
+  };
+  if (CONN) {
+    const { rows } = await getPool().query(
+      `INSERT INTO lead_status (business_id, status, note, business_name, business_address, lat, lng, updated_by, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8, now())
+       ON CONFLICT (business_id) DO UPDATE SET
+         status = EXCLUDED.status, note = EXCLUDED.note,
+         business_name = EXCLUDED.business_name, business_address = EXCLUDED.business_address,
+         lat = EXCLUDED.lat, lng = EXCLUDED.lng,
+         updated_by = EXCLUDED.updated_by, updated_at = now()
+       RETURNING *`,
+      [row.business_id, row.status, row.note, business_name, business_address, lat, lng, updated_by]
+    );
+    return rows[0];
+  }
+  mem.leadStatus.set(row.business_id, row);
+  return row;
+}
+
+export async function clearLeadStatus(business_id) {
+  if (CONN) { await getPool().query(`DELETE FROM lead_status WHERE business_id = $1`, [String(business_id)]); return; }
+  mem.leadStatus.delete(String(business_id));
+}
+
+// Only the ids we are about to show are looked up, so this stays fast however
+// many leads the team has worked over the years.
+export async function getLeadStatuses(ids = []) {
+  const out = {};
+  if (!ids.length) return out;
+  if (CONN) {
+    const { rows } = await getPool().query(
+      `SELECT ls.*, u.name AS updated_by_name
+         FROM lead_status ls LEFT JOIN users u ON u.id = ls.updated_by
+        WHERE ls.business_id = ANY($1)`, [ids.map(String)]);
+    for (const r of rows) out[r.business_id] = r;
+    return out;
+  }
+  const byId = new Map((mem?.users || []).map((u) => [u.id, u]));
+  for (const id of ids.map(String)) {
+    const r = mem?.leadStatus?.get(id);
+    if (r) out[id] = { ...r, updated_by_name: byId.get(r.updated_by)?.name || '' };
+  }
+  return out;
+}
+
+export async function listLeadStatuses({ limit = 200 } = {}) {
+  if (CONN) {
+    const { rows } = await getPool().query(
+      `SELECT ls.*, u.name AS updated_by_name
+         FROM lead_status ls LEFT JOIN users u ON u.id = ls.updated_by
+        ORDER BY ls.updated_at DESC LIMIT $1`, [limit]);
+    return rows;
+  }
+  const byId = new Map((mem?.users || []).map((u) => [u.id, u]));
+  return [...(mem?.leadStatus?.values() || [])]
+    .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
+    .slice(0, limit)
+    .map((r) => ({ ...r, updated_by_name: byId.get(r.updated_by)?.name || '' }));
+}
+
+// ------------------------------------------------------- rep management
+
+export async function setUserActive(id, active) {
+  if (CONN) {
+    const { rows } = await getPool().query(
+      `UPDATE users SET active = $2 WHERE id = $1 RETURNING id, email, name, role, active`, [id, !!active]);
+    return rows[0] || null;
+  }
+  const u = mem?.users.find((x) => x.id === Number(id));
+  if (!u) return null;
+  u.active = !!active;
+  return { id: u.id, email: u.email, name: u.name, role: u.role, active: u.active };
+}
+
+export async function setUserPassword(id, password_hash) {
+  if (CONN) {
+    const { rows } = await getPool().query(
+      `UPDATE users SET password_hash = $2 WHERE id = $1 RETURNING id, email, name, role`, [id, password_hash]);
+    return rows[0] || null;
+  }
+  const u = mem?.users.find((x) => x.id === Number(id));
+  if (!u) return null;
+  u.password_hash = password_hash;
+  return { id: u.id, email: u.email, name: u.name, role: u.role };
+}
+
+// Best-effort: a failure here must never block a sign-in.
+export async function touchLastSeen(id) {
+  try {
+    if (CONN) { await getPool().query(`UPDATE users SET last_seen = now() WHERE id = $1`, [id]); return; }
+    const u = mem?.users.find((x) => x.id === Number(id));
+    if (u) u.last_seen = new Date().toISOString();
+  } catch { /* ignore */ }
 }
 
 // ------------------------------------------------------------- activity
