@@ -1,4 +1,6 @@
-import { initDb, logActivity, getCachedElements, putCachedElements } from '../_lib/db.js';
+import {
+  initDb, logActivity, getCachedElements, putCachedElements, getLeadStatuses
+} from '../_lib/db.js';
 import { getAuthUser } from '../_lib/auth.js';
 import { applyCors, readBody } from '../_lib/http.js';
 
@@ -371,7 +373,37 @@ export default async function handler(req, res) {
     });
   }
 
-  const businesses = best.slice(0, MAX_RESULTS).map(({ _dist, ...b }) => b);
+  let businesses = best.slice(0, MAX_RESULTS).map(({ _dist, ...b }) => b);
+
+  // ---- what already happened at these doors --------------------------------
+  //
+  // A lead somebody already worked should not be sitting at the top of the list
+  // again tomorrow. Statuses are attached here and the order adjusted so
+  // untouched leads come first, then contacted and quoted, with dead ones last.
+  //
+  // Nothing is HIDDEN. A rep may well want to walk back into a "not interested"
+  // from six months ago, and removing it from the list would take that decision
+  // away from the person standing outside the shop.
+  try {
+    await initDb();
+    const statuses = await getLeadStatuses(businesses.map((b) => b.id));
+    if (Object.keys(statuses).length) {
+      const SUNK = { won: 3, not_interested: 4, quoted: 2, contacted: 1 };
+      businesses = businesses
+        .map((b) => {
+          const s = statuses[b.id];
+          return s
+            ? { ...b, leadStatus: s.status, leadNote: s.note || '',
+                leadBy: s.updated_by_name || '', leadAt: s.updated_at }
+            : b;
+        })
+        .sort((a, b) => (SUNK[a.leadStatus] || 0) - (SUNK[b.leadStatus] || 0) ||
+                        (b.score || 0) - (a.score || 0));
+    }
+  } catch (e) {
+    /* a status lookup failing must never cost the rep their search */
+    console.warn('lead statuses unavailable:', e && e.message);
+  }
 
   // Fire-and-forget: logging must never delay or break the rep's search.
   initDb()
