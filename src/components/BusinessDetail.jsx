@@ -14,7 +14,9 @@ export default function BusinessDetail({ business, onClose }) {
       setLoading(true);
       setError('');
       try {
-        const res = await api.pitch(business.name, business.type, business.address);
+        const res = await api.pitch(
+          business.name, business.type, business.address, business.distanceMiles ?? null
+        );
         if (!cancelled) {
           setEmail(res.email || '');
           setPitch(res.pitch || '');

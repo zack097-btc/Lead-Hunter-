@@ -9,6 +9,20 @@ import ListView from './ListView.jsx';
 import BusinessDetail from './BusinessDetail.jsx';
 import AdminPanel from './AdminPanel.jsx';
 
+// Half a mile is far enough that the businesses around you have genuinely
+// changed, and short enough that a rep working a strip gets fresh leads without
+// asking. The time floor stops a bad GPS fix from triggering a burst.
+const AUTO_REFRESH_MILES = 0.5;
+const AUTO_REFRESH_MIN_MS = 60000;
+
+function milesBetween(a, b) {
+  const R = 3958.8, toRad = (x) => (x * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const [coords, setCoords] = useState(null); // { lat, lng }
@@ -24,6 +38,9 @@ export default function Dashboard() {
   const [showFilters, setShowFilters] = useState(false);
   const [selected, setSelected] = useState(null);
   const didInitialSearch = useRef(false);
+  const lastSearchAt = useRef(null);          // { lat, lng, t } of the last search
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [autoNote, setAutoNote] = useState(false);
 
   // Continuous GPS tracking via the browser geolocation API.
   useEffect(() => {
@@ -42,20 +59,42 @@ export default function Dashboard() {
     return () => navigator.geolocation.clearWatch(id);
   }, []);
 
-  // Auto-search once when we first get a location (then it's manual, to save API cost).
+  // ---- searching as the rep moves -------------------------------------------
+  //
+  // The first search happens by itself once GPS arrives. After that it refreshes
+  // when the rep has actually MOVED somewhere new — driving half a mile down the
+  // road means a different set of doors, and nobody should have to remember to
+  // tap a button for that.
+  //
+  // Distance, not time, is the trigger. A rep parked outside a shop for twenty
+  // minutes writing a quote does not need the free map service hit every minute,
+  // and GPS drift of a few metres is not movement.
   useEffect(() => {
-    if (coords && !didInitialSearch.current) {
+    if (!coords) return;
+    if (!didInitialSearch.current) {
       didInitialSearch.current = true;
+      lastSearchAt.current = { ...coords, t: Date.now() };
       search();
+      return;
     }
+    if (!autoRefresh || searching) return;
+    const last = lastSearchAt.current;
+    if (!last) return;
+    if (milesBetween(last, coords) < AUTO_REFRESH_MILES) return;
+    if (Date.now() - last.t < AUTO_REFRESH_MIN_MS) return;   // belt and braces
+    lastSearchAt.current = { ...coords, t: Date.now() };
+    setAutoNote(true);
+    setTimeout(() => setAutoNote(false), 4000);
+    search({ auto: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coords]);
+  }, [coords, autoRefresh, searching]);
 
-  async function search({ force = false } = {}) {
+  async function search({ force = false, auto = false } = {}) {
     if (!coords) {
       setSearchError('Waiting for your GPS location…');
       return;
     }
+    if (!auto) lastSearchAt.current = { ...coords, t: Date.now() };
     setSearching(true);
     setSearchError('');
     setMeta(null);
@@ -78,6 +117,29 @@ export default function Dashboard() {
 
   function toggleState(code) {
     setStates((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
+  }
+
+  // Marking a lead updates the screen straight away and reconciles with the
+  // server after. A rep tapping "Talked to" outside a shop should not be made
+  // to wait on a network round trip to see it land — and if the save fails they
+  // are told, and the card goes back to what it was.
+  async function markLead(b, status) {
+    const before = businesses;
+    const stamp = new Date().toISOString();
+    setBusinesses((list) =>
+      list.map((x) =>
+        x.id === b.id
+          ? { ...x, leadStatus: status || undefined, leadBy: status ? user.name : undefined,
+              leadAt: status ? stamp : undefined, leadNote: status ? x.leadNote : undefined }
+          : x
+      )
+    );
+    try {
+      await api.setLeadStatus(b, status);
+    } catch (err) {
+      setBusinesses(before);
+      alert('Could not save that: ' + err.message + '\n\nThe lead has been put back as it was.');
+    }
   }
 
   async function openBusiness(b) {
@@ -151,8 +213,8 @@ export default function Dashboard() {
             )}
           </div>
 
-          <div className="statusline">
-            {geoError
+          <div className="statusline statusrow">
+            <span className="statustext">{geoError
               ? `📍 ${geoError}`
               : coords
               ? `📍 ${visible.length} lead${visible.length === 1 ? '' : 's'} within ${radius} mi`
@@ -163,8 +225,20 @@ export default function Dashboard() {
                 · {meta.cached ? 'saved copy' : `${(meta.ms / 1000).toFixed(1)}s`}
               </span>
             )}
+            </span>
+            {/* Sits on the status line rather than its own row — the leads are
+                what the screen is for, and this is set once and forgotten. */}
+            <label className="auto-toggle" title="Refresh the list by itself once you've moved half a mile">
+              <input
+                type="checkbox"
+                checked={autoRefresh}
+                onChange={(e) => setAutoRefresh(e.target.checked)}
+              />
+              Auto
+            </label>
           </div>
 
+          {autoNote && <div className="note">You've moved — refreshing the leads around you.</div>}
           {slowNote && (
             <div className="note">
               Still going — the free map service is slow right now. It has up to a
@@ -180,7 +254,12 @@ export default function Dashboard() {
       <div className="content">
         {tab === 'map' && <MapView center={coords} businesses={visible} onSelect={openBusiness} />}
         {tab === 'list' && (
-          <ListView businesses={visible} onSelect={openBusiness} searching={searching} />
+          <ListView
+            businesses={visible}
+            onSelect={openBusiness}
+            searching={searching}
+            onStatus={markLead}
+          />
         )}
         {tab === 'admin' && <AdminPanel />}
       </div>
