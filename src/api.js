@@ -42,8 +42,20 @@ export const api = {
   // `force` skips the week-long server cache when somebody wants a fresh look.
   nearby: (lat, lng, radiusMiles, { force = false } = {}) =>
     request('/api/places/nearby', { method: 'POST', body: { lat, lng, radiusMiles, force } }),
-  pitch: (businessName, businessType, address) =>
-    request('/api/ai/pitch', { method: 'POST', body: { businessName, businessType, address } }),
+  pitch: (businessName, businessType, address, distanceMiles) =>
+    request('/api/ai/pitch', { method: 'POST', body: { businessName, businessType, address, distanceMiles } }),
   logActivity: (entry) => request('/api/activity', { method: 'POST', body: entry }),
-  adminReps: () => request('/api/admin/reps')
+  adminReps: () => request('/api/admin/reps'),
+
+  // Lead status. An empty status clears the mark — every button needs a way back.
+  setLeadStatus: (b, status, note = '') =>
+    request('/api/leads/status', {
+      method: 'POST',
+      body: {
+        business_id: b.id, status, note,
+        business_name: b.name, business_address: b.address, lat: b.lat, lng: b.lng
+      }
+    }),
+  repAction: (action, userId, password) =>
+    request('/api/admin/reps', { method: 'POST', body: { action, userId, password } })
 };

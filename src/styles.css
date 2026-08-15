@@ -671,3 +671,141 @@ table.reps th {
 .tabbar button { min-height: 52px; font-size: 13px; }
 .chip { min-height: 44px; display: inline-flex; align-items: center; padding: 7px 14px; }
 .seg button { min-height: 44px; }
+
+/* ============================================================================
+   Lead status, rep management, auto-refresh          (added 10 Aug 2026)
+   ==========================================================================
+   The list is a work queue. Once a door has been knocked on, that fact is the
+   most useful thing on the card — more useful than the reason the app suggested
+   it in the first place — so it takes that position and the card steps back
+   visually without disappearing.
+   ========================================================================== */
+
+.mark-toggle {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  color: var(--brand-2);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 2px;
+  min-height: 40px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.mark-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.mark-row .mark {
+  flex: 1 1 auto;
+  min-width: 76px;
+  min-height: 46px;              /* thumb-sized: this gets tapped outdoors */
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mark-row .mark:disabled { opacity: 0.5; }
+.mark-row .mark.on.contacted { background: #7dd3fc; border-color: #7dd3fc; color: #06122b; }
+.mark-row .mark.on.quoted { background: var(--accent); border-color: var(--accent); color: #06122b; }
+.mark-row .mark.on.won { background: var(--good); border-color: var(--good); color: #06122b; }
+.mark-row .mark.on.not_interested { background: #64748b; border-color: #64748b; color: #fff; }
+
+/* What happened here, and who did it. */
+.status-line {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  border-left: 3px solid var(--line);
+  padding-left: 9px;
+}
+.status-line.contacted { border-left-color: #7dd3fc; }
+.status-line.quoted { border-left-color: var(--accent); }
+.status-line.won { border-left-color: var(--good); }
+.status-line.not_interested { border-left-color: #64748b; }
+.status-note { margin-top: 3px; font-style: italic; }
+
+/* A worked lead stays readable but stops shouting. A dead one fades further —
+   still there, because somebody may want to try again in six months, but it
+   should never be the thing the eye lands on first. */
+.lead.worked { opacity: 0.92; }
+.lead.dead { opacity: 0.55; }
+
+.statusrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+.statustext { flex: 1 1 auto; min-width: 0; }
+.auto-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.auto-toggle input { width: 17px; height: 17px; }
+
+/* ---- admin ---------------------------------------------------------------- */
+.rep-list { display: flex; flex-direction: column; gap: 10px; }
+.rep-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  padding: 12px;
+}
+.rep-card.off { opacity: 0.6; }
+.rep-sub { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+.badge.off { background: #64748b; }
+
+.rep-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 9px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.rep-stats .good { color: var(--good); font-weight: 700; }
+.rep-stats .dim { opacity: 0.7; }
+
+.rep-actions { display: flex; gap: 8px; margin-top: 11px; flex-wrap: wrap; }
+.rep-actions button {
+  flex: 1 1 auto;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rep-actions button:disabled { opacity: 0.45; cursor: default; }
+
+.tag {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #06122b;
+}
+.tag.contacted { background: #7dd3fc; }
+.tag.quoted { background: var(--accent); }
+.tag.won { background: var(--good); }
+.tag.not_interested { background: #64748b; color: #fff; }
