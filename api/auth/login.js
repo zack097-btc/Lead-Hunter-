@@ -1,4 +1,4 @@
-import { initDb, getUserByEmail, logActivity } from '../_lib/db.js';
+import { initDb, getUserByEmail, logActivity, touchLastSeen } from '../_lib/db.js';
 import { comparePassword, signToken, SECRET_MISSING, SECRET_MISSING_MESSAGE } from '../_lib/auth.js';
 import { applyCors, readBody } from '../_lib/http.js';
 
@@ -19,7 +19,13 @@ export default async function handler(req, res) {
   const ok = await comparePassword(String(password), user.password_hash);
   if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
 
+  // A switched-off rep must lose access. Checked AFTER the password on purpose:
+  // doing it before would let anyone discover which addresses have accounts.
+  if (user.active === false)
+    return res.status(403).json({ error: 'This account has been switched off. Speak to Zack.' });
+
   await logActivity({ user_id: user.id, type: 'login' });
+  touchLastSeen(user.id);
 
   const token = signToken(user);
   res.status(200).json({

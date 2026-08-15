@@ -1,4 +1,4 @@
-import { initDb, getUserById } from '../_lib/db.js';
+import { initDb, getUserById, touchLastSeen } from '../_lib/db.js';
 import { getAuthUser } from '../_lib/auth.js';
 import { applyCors } from '../_lib/http.js';
 
@@ -10,6 +10,14 @@ export default async function handler(req, res) {
   await initDb();
   const user = await getUserById(auth.uid);
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
+
+  // Tokens last thirty days, so switching a rep off has to be enforced against
+  // the token as well as at sign-in. This route runs every time the app is
+  // opened, which is where a departed rep actually gets shut out.
+  if (user.active === false)
+    return res.status(403).json({ error: 'This account has been switched off. Speak to Zack.' });
+
+  touchLastSeen(user.id);
 
   res.status(200).json({
     user: { id: user.id, email: user.email, name: user.name, role: user.role }
